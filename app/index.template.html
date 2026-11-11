@@ -1,0 +1,655 @@
+<title>Papeleta 29N</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=Literata:opsz,wght@7..72,400..700&display=swap">
+<style>
+/* Layout: app de una pantalla. Cabecera con pestañas, tarjeta tipo papeleta
+   que ocupa el centro con scroll propio, y botonera de voto fija abajo. */
+:root {
+  --bg: #e9ecf1;
+  --card: #ffffff;
+  --ink: #161a22;
+  --muted: #5b6474;
+  --line: #d3d8e1;
+  --accent: #3a3fcf;
+  --accent-ink: #ffffff;
+  --v-rf: #c9302c;
+  --v-no: #d9774b;
+  --v-neu: #7d8696;
+  --v-si: #3d9a6e;
+  --v-es: #0c7a52;
+  --shadow: 0 1px 2px rgb(22 26 34 / .06), 0 8px 24px rgb(22 26 34 / .08);
+  --f-ui: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-read: "Literata", Georgia, "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1217; --card: #1a1e26; --ink: #e7eaf0; --muted: #9aa3b2; --line: #2c323d;
+    --accent: #8d91ff; --accent-ink: #10121a;
+    --v-rf: #ef5b55; --v-no: #ec9465; --v-neu: #9aa3b2; --v-si: #5cc08f; --v-es: #34c48a;
+    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1217; --card: #1a1e26; --ink: #e7eaf0; --muted: #9aa3b2; --line: #2c323d;
+  --accent: #8d91ff; --accent-ink: #10121a;
+  --v-rf: #ef5b55; --v-no: #ec9465; --v-neu: #9aa3b2; --v-si: #5cc08f; --v-es: #34c48a;
+  --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .35);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-ui); font-size: 15px; line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--bg);
+}
+.app {
+  height: 100%; display: flex; flex-direction: column; gap: 12px;
+  max-width: 560px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Cabecera */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; font-size: 17px; display: flex; align-items: baseline; gap: 6px; }
+.brand small { font-weight: 500; font-stretch: 100%; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.tabs { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+.tabs a {
+  text-decoration: none; color: var(--muted); font-size: 13px; font-weight: 600;
+  padding: 5px 11px; border-radius: 999px; white-space: nowrap;
+}
+.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+
+.view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.view[hidden] { display: none !important; }
+
+/* Progreso */
+.progress { display: grid; gap: 6px; }
+.progress-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s ease; }
+.notice {
+  font-size: 12.5px; color: var(--muted); background: var(--card); border: 1px dashed var(--line);
+  border-radius: 10px; padding: 8px 10px; display: flex; gap: 8px; align-items: flex-start;
+}
+.notice button { margin-left: auto; background: none; border: 0; color: var(--muted); padding: 0 2px; font-size: 16px; line-height: 1; }
+
+/* Tarjeta */
+.stage { flex: 1; min-height: 0; position: relative; }
+.card {
+  position: absolute; inset: 0; background: var(--card); border-radius: 18px;
+  box-shadow: var(--shadow); border: 1px solid var(--line);
+  display: flex; flex-direction: column; overflow: hidden;
+  touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .28s;
+  will-change: transform;
+}
+.card.dragging { transition: none; }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+  transition: background .3s, color .3s;
+}
+.card-head .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.card-head .q {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px dashed var(--muted); font-size: 12px; text-transform: none; letter-spacing: 0;
+}
+.card-head .ref { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card.revealed .card-head { background: var(--party); color: #fff; border-bottom-color: transparent; }
+.card.revealed .card-head .q { display: none; }
+.party-name { font-weight: 800; font-stretch: 110%; letter-spacing: .02em; font-size: 13px; }
+.card-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 24px; overscroll-behavior: contain; }
+.card-title {
+  font-family: var(--f-ui); font-weight: 700; font-stretch: 104%; font-size: 15.5px; line-height: 1.35;
+  letter-spacing: .005em; margin: 0 0 12px; text-wrap: balance;
+}
+.card-text { font-family: var(--f-read); font-size: 17px; line-height: 1.6; margin: 0; white-space: pre-line; max-width: 65ch; }
+.reveal-info { display: none; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); gap: 6px; }
+.card.revealed .reveal-info { display: grid; }
+.reveal-info a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.reveal-info a:hover { text-decoration: underline; }
+.stamp {
+  position: absolute; top: 58px; padding: 4px 10px; border: 3px solid currentColor; border-radius: 8px;
+  font-weight: 800; font-stretch: 115%; font-size: 20px; letter-spacing: .04em; text-transform: uppercase;
+  opacity: 0; pointer-events: none; background: var(--card);
+}
+.stamp.si { left: 18px; color: var(--v-si); transform: rotate(-10deg); }
+.stamp.no { right: 18px; color: var(--v-no); transform: rotate(10deg); }
+.empty { display: grid; place-items: center; text-align: center; height: 100%; padding: 24px; color: var(--muted); }
+.empty h2 { color: var(--ink); font-size: 18px; margin: 0 0 6px; }
+
+/* Botonera */
+.votes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.vbtn {
+  display: grid; justify-items: center; gap: 3px; padding: 9px 2px 8px; border-radius: 12px;
+  background: var(--card); border: 1.5px solid var(--line); font-size: 11.5px; font-weight: 600; color: var(--ink);
+  transition: transform .1s, background .15s, border-color .15s, color .15s;
+}
+.vbtn svg { width: 22px; height: 22px; color: var(--c); }
+.vbtn:active { transform: scale(.96); }
+.vbtn[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: #fff; }
+.vbtn[aria-pressed="true"] svg { color: #fff; }
+.under { display: flex; gap: 8px; }
+.under button {
+  flex: 1; padding: 11px 12px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: transparent; font-weight: 600; font-size: 14px;
+}
+.under .primary { background: var(--ink); color: var(--bg); border-color: var(--ink); flex: 2; }
+.under button[hidden] { display: none; }
+.hint { font-size: 11.5px; color: var(--muted); text-align: center; }
+
+/* Afinidad */
+.scroll { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 12px; padding-bottom: 8px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 700; }
+.aff { display: grid; gap: 14px; }
+.aff-row { display: grid; gap: 6px; }
+.aff-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.aff-name { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--party); flex: none; }
+.aff-score { font-weight: 800; font-stretch: 112%; font-size: 20px; font-variant-numeric: tabular-nums; }
+.aff-score.pend { font-size: 13px; font-weight: 600; color: var(--muted); font-stretch: 100%; }
+.diverge { position: relative; height: 10px; background: var(--bg); border-radius: 6px; overflow: hidden; }
+.diverge::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1.5px; background: var(--muted); opacity: .6; }
+.diverge > i { position: absolute; top: 0; bottom: 0; background: var(--party); border-radius: 6px; }
+.aff-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.aff-meta b { color: var(--ink); font-weight: 700; }
+.aff-meta .rf b { color: var(--v-rf); }
+.aff-meta .es b { color: var(--v-es); }
+.scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -4px; }
+.small { font-size: 13px; color: var(--muted); margin: 0; }
+.small + .small { margin-top: 6px; }
+.legend { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.legend span:nth-child(odd) { font-weight: 700; text-align: right; }
+
+/* Mis votos */
+.filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px;
+  padding: 5px 11px; font-size: 12.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.list { display: grid; gap: 8px; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.item summary { list-style: none; cursor: pointer; padding: 12px 14px; display: grid; gap: 4px; }
+.item summary::-webkit-details-marker { display: none; }
+.item-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.item-meta .pill { margin-left: auto; }
+.item-title { font-weight: 600; font-size: 14px; line-height: 1.35; }
+.pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: #fff; background: var(--c); white-space: nowrap; }
+.item-body { padding: 0 14px 14px; display: grid; gap: 10px; }
+.item-body p { font-family: var(--f-read); font-size: 15.5px; line-height: 1.55; margin: 0; white-space: pre-line; }
+.item-body a { color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; }
+.item-body .votes { gap: 4px; }
+.item-body .vbtn { padding: 7px 2px 6px; font-size: 10.5px; }
+.item-body .vbtn svg { width: 18px; height: 18px; }
+.sync { font-size: 12px; color: var(--muted); text-align: center; }
+
+@media (min-width: 700px) {
+  .app { padding-block: 24px; }
+  .card-body { padding: 24px 28px 28px; }
+  .card-text { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card, .bar > i, .vbtn { transition: none; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Papeleta <small>Generales 29N</small></div>
+    <nav class="tabs" aria-label="Secciones">
+      <a href="#tarjetas" data-view="tarjetas">Tarjetas</a>
+      <a href="#afinidad" data-view="afinidad">Afinidad</a>
+      <a href="#votos" data-view="votos">Mis votos</a>
+    </nav>
+  </header>
+
+  <section class="view" id="v-tarjetas" aria-label="Tarjetas">
+    <div class="progress">
+      <div class="progress-row"><span id="prog-text">Cargando…</span><span id="prog-pct"></span></div>
+      <div class="bar"><i id="prog-bar"></i></div>
+    </div>
+    <div class="notice" id="notice" hidden></div>
+    <div class="stage" id="stage"></div>
+    <div class="votes" id="vote-bar" role="group" aria-label="Tu opinión"></div>
+    <div class="under">
+      <button type="button" id="btn-skip">Saltar</button>
+      <button type="button" id="btn-next" class="primary" hidden>Siguiente</button>
+    </div>
+    <div class="hint" id="hint">← En contra · desliza la tarjeta · A favor →</div>
+  </section>
+
+  <section class="view" id="v-afinidad" aria-label="Afinidad" hidden>
+    <div class="scroll">
+      <div class="panel">
+        <h2>Tu afinidad con cada programa</h2>
+        <div class="aff" id="aff"></div>
+        <div class="scale" aria-hidden="true"><span>−100 en contra</span><span>0</span><span>+100 a favor</span></div>
+      </div>
+      <div class="panel">
+        <h2>Cómo se calcula</h2>
+        <p class="small">Cada voto suma puntos al partido autor de la propuesta. La afinidad es la media de tus votos sobre ese partido, escalada de −100 (todo red flags) a +100 (todo esenciales). Solo cuentan las propuestas que has votado, así que un partido con pocas tarjetas leídas tiene una cifra menos fiable.</p>
+        <div class="legend" id="legend"></div>
+      </div>
+      <p class="sync" id="sync-note"></p>
+    </div>
+  </section>
+
+  <section class="view" id="v-votos" aria-label="Mis votos" hidden>
+    <div class="filters" id="f-voto" role="group" aria-label="Filtrar por voto"></div>
+    <div class="filters" id="f-partido" role="group" aria-label="Filtrar por partido"></div>
+    <div class="scroll"><div class="list" id="list"></div></div>
+  </section>
+</div>
+
+<script id="programas" type="application/json">/*__DATA__*/[]</script>
+<script>
+(() => {
+  "use strict";
+  const PARTIDOS = JSON.parse(document.getElementById("programas").textContent);
+  const byId = Object.fromEntries(PARTIDOS.map(p => [p.id, p]));
+  const LOADED = PARTIDOS.filter(p => p.medidas.length);
+
+  const ICON = {
+    rf: '<path d="M6 21V4.5h11.5l-2 4 2 4H6"/>',
+    no: '<path d="M7 7l10 10M17 7L7 17"/>',
+    neu: '<path d="M6 12h12"/>',
+    si: '<path d="M5.5 12.5l4.2 4.2L18.5 8"/>',
+    es: '<path d="M12 3.8l2.5 5.2 5.7.7-4.2 3.9 1.1 5.6-5.1-2.8-5.1 2.8 1.1-5.6-4.2-3.9 5.7-.7z"/>',
+  };
+  // v: categoría guardada en cada voto (no cambiar). w: puntos para la afinidad.
+  const VOTOS = [
+    { v: -2, w: -4, k: "rf", label: "Red flag", key: "1" },
+    { v: -1, w: -1, k: "no", label: "En contra", key: "2" },
+    { v: 0, w: 0, k: "neu", label: "Neutral", key: "3" },
+    { v: 1, w: 1, k: "si", label: "A favor", key: "4" },
+    { v: 2, w: 4, k: "es", label: "Esencial", key: "5" },
+  ];
+  const W_MAX = Math.max(...VOTOS.map(o => Math.abs(o.w)));
+  const byV = Object.fromEntries(VOTOS.map(o => [o.v, o]));
+  const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // ---------- almacenamiento local ----------
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem("p29n." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("p29n." + k, JSON.stringify(v)); } catch {} },
+  };
+  // votos[partido][n] = {v, t}
+  const votos = Object.assign(Object.fromEntries(PARTIDOS.map(p => [p.id, {}])), LS.get("votos", {}));
+  let saltadas = new Set(LS.get("saltadas", []));
+  let actual = LS.get("actual", null);
+  const saveLocal = () => { LS.set("votos", votos); LS.set("saltadas", [...saltadas]); LS.set("actual", actual); };
+
+  const medida = id => { const [p, n] = id.split(":"); const m = byId[p]?.medidas.find(x => x.n === +n); return m ? { p, m } : null; };
+  const voto = (p, n) => votos[p]?.[n]?.v;
+  const votables = p => p.medidas.filter(m => !m.pend);
+  const totalVotables = LOADED.reduce((s, p) => s + votables(p).length, 0);
+  const totalVotadas = () => LOADED.reduce((s, p) => s + votables(p).filter(m => voto(p.id, m.n) !== undefined).length, 0);
+  const pagStr = m => m.pf && m.pf !== m.p ? `págs. ${m.p}–${m.pf}` : `pág. ${m.p}`;
+  const pdfUrl = (p, m) => `${byId[p].fuente}#page=${m.pdf}`;
+
+  // ---------- elegir la siguiente tarjeta ----------
+  function siguiente() {
+    const cand = (useSkip) => LOADED.map(p => ({
+      p: p.id,
+      ms: votables(p).filter(m => voto(p.id, m.n) === undefined && (useSkip || !saltadas.has(p.id + ":" + m.n))),
+    })).filter(x => x.ms.length);
+    let pool = cand(false);
+    if (!pool.length) { saltadas.clear(); pool = cand(true); }
+    if (!pool.length) return null;
+    // primero un partido al azar (a partes iguales), luego una medida al azar
+    const g = pool[Math.floor(Math.random() * pool.length)];
+    const m = g.ms[Math.floor(Math.random() * g.ms.length)];
+    return g.p + ":" + m.n;
+  }
+
+  // ---------- vista Tarjetas ----------
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), voteBar = $("vote-bar"), btnNext = $("btn-next"), btnSkip = $("btn-skip");
+  let cardEl = null;
+
+  voteBar.innerHTML = VOTOS.map(o =>
+    `<button type="button" class="vbtn" data-v="${o.v}" style="--c:var(--v-${o.k})" aria-pressed="false" title="${o.label} (tecla ${o.key})">${svg(o.k)}<span>${o.label}</span></button>`
+  ).join("");
+  voteBar.addEventListener("click", e => { const b = e.target.closest(".vbtn"); if (b) votar(+b.dataset.v); });
+  btnNext.addEventListener("click", () => avanzar());
+  btnSkip.addEventListener("click", () => saltar());
+
+  function renderProgreso() {
+    const n = totalVotadas();
+    $("prog-text").textContent = `Has votado ${n} de ${totalVotables} propuestas`;
+    $("prog-pct").textContent = totalVotables ? Math.round(n * 100 / totalVotables) + " %" : "";
+    $("prog-bar").style.width = totalVotables ? (n * 100 / totalVotables) + "%" : "0";
+  }
+
+  function renderNotice() {
+    const pend = PARTIDOS.filter(p => !p.medidas.length);
+    const el = $("notice");
+    if (!pend.length || LS.get("notice-" + pend.map(p => p.id).join(","), false)) { el.hidden = true; return; }
+    const cargados = LOADED.map(p => p.corto).join(", ");
+    el.innerHTML = `<span>Programas cargados: <b>${esc(cargados)}</b>. ${esc(pend.map(p => p.corto).join(", "))} todavía no han publicado el suyo; sus propuestas se añadirán aquí cuando lo hagan.</span><button type="button" aria-label="Cerrar aviso">×</button>`;
+    el.querySelector("button").onclick = () => { LS.set("notice-" + pend.map(p => p.id).join(","), true); el.hidden = true; };
+    el.hidden = false;
+  }
+
+  function renderCard() {
+    renderProgreso();
+    if (!actual || !medida(actual)) { actual = siguiente(); saveLocal(); }
+    if (!actual) {
+      stage.innerHTML = `<div class="card"><div class="empty"><div><h2>Has votado todas las propuestas</h2><p>Mira tu afinidad o repasa tus votos. Cuando se publiquen nuevos programas aparecerán aquí.</p></div></div></div>`;
+      voteBar.hidden = true; btnSkip.hidden = true; btnNext.hidden = true; $("hint").hidden = true;
+      return;
+    }
+    voteBar.hidden = false; $("hint").hidden = false;
+    const { p, m } = medida(actual);
+    const P = byId[p];
+    const v = voto(p, m.n);
+    const revealed = v !== undefined;
+    stage.innerHTML = `
+      <article class="card${revealed ? " revealed" : ""}" style="--party:${P.color}" aria-live="polite">
+        <div class="card-head">
+          <span class="who"><span class="q" aria-hidden="true">?</span><span class="party-name">${revealed ? esc(P.nombre) : "Propuesta anónima"}</span></span>
+          <span class="ref">${revealed ? `${esc(P.unidad)} ${m.n} · ${pagStr(m)}` : ""}</span>
+        </div>
+        <div class="card-body">
+          ${m.ti ? `<h1 class="card-title">${esc(m.ti)}</h1>` : ""}
+          <p class="card-text">${esc(m.tx)}</p>
+          <div class="reveal-info">
+            ${m.a ? `<span>Apartado ${esc(m.a)}${m.at ? " · " + esc(m.at) : ""}</span>` : ""}
+            ${m.b ? `<span>Bloque: ${esc(m.b)}</span>` : ""}
+            <span>${esc(P.documento)}</span>
+            <a href="${esc(pdfUrl(p, m))}" target="_blank" rel="noopener">Abrir el programa en la ${pagStr(m).replace("págs.", "página").replace("pág.", "página")} ↗</a>
+          </div>
+        </div>
+        <div class="stamp si">A favor</div>
+        <div class="stamp no">En contra</div>
+      </article>`;
+    cardEl = stage.firstElementChild;
+    cardEl.querySelector(".card-body").scrollTop = 0;
+    voteBar.querySelectorAll(".vbtn").forEach(b => b.setAttribute("aria-pressed", String(revealed && +b.dataset.v === v)));
+    btnNext.hidden = !revealed;
+    btnSkip.hidden = revealed;
+    $("hint").textContent = revealed
+      ? "Toca otro botón para cambiar tu voto"
+      : "← En contra · desliza la tarjeta · A favor →";
+    attachSwipe(cardEl);
+  }
+
+  function votar(v) {
+    if (!actual) return;
+    const { p, m } = medida(actual);
+    const rec = { v, t: Date.now() };
+    votos[p][m.n] = rec;
+    saltadas.delete(actual);
+    saveLocal();
+    Sync.push(p, m.n, rec);
+    renderCard();
+  }
+
+  function avanzar(dir = 1) {
+    if (!cardEl || cardEl.dataset.leaving) return;
+    const el = cardEl;
+    el.dataset.leaving = "1";
+    el.style.transform = `translateX(${dir * 120}%) rotate(${dir * 12}deg)`;
+    el.style.opacity = "0";
+    actual = siguiente();
+    saveLocal();
+    setTimeout(renderCard, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220);
+  }
+
+  function saltar() {
+    if (!actual) return;
+    saltadas.add(actual);
+    avanzar(-1);
+  }
+
+  function attachSwipe(el) {
+    let x0 = 0, y0 = 0, dx = 0, active = false, horizontal = null, id = null;
+    const si = el.querySelector(".stamp.si"), no = el.querySelector(".stamp.no");
+    const revealed = () => el.classList.contains("revealed");
+    el.addEventListener("pointerdown", e => {
+      if (e.button !== 0 || e.target.closest("a") || el !== cardEl || el.dataset.leaving) return;
+      active = true; horizontal = null; x0 = e.clientX; y0 = e.clientY; dx = 0; id = e.pointerId;
+    });
+    el.addEventListener("pointermove", e => {
+      if (!active || e.pointerId !== id) return;
+      const ddx = e.clientX - x0, ddy = e.clientY - y0;
+      if (horizontal === null) {
+        if (Math.abs(ddx) < 8 && Math.abs(ddy) < 8) return;
+        horizontal = Math.abs(ddx) > Math.abs(ddy);
+        if (!horizontal) { active = false; return; }
+        el.setPointerCapture(id);
+        el.classList.add("dragging");
+      }
+      dx = ddx;
+      el.style.transform = `translateX(${dx}px) rotate(${dx / 25}deg)`;
+      if (!revealed()) {
+        si.style.opacity = Math.max(0, Math.min(1, dx / 90));
+        no.style.opacity = Math.max(0, Math.min(1, -dx / 90));
+      }
+    });
+    const end = () => {
+      if (!active) return;
+      active = false;
+      el.classList.remove("dragging");
+      if (horizontal && Math.abs(dx) > 90) {
+        if (revealed()) { avanzar(Math.sign(dx)); return; }
+        votar(dx > 0 ? 1 : -1);
+        return;
+      }
+      el.style.transform = ""; si.style.opacity = 0; no.style.opacity = 0;
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    el.addEventListener("lostpointercapture", end);
+  }
+
+  document.addEventListener("keydown", e => {
+    if (vista !== "tarjetas" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest?.("input, textarea, select")) return;
+    const o = VOTOS.find(o => o.key === e.key);
+    if (o) { votar(o.v); e.preventDefault(); return; }
+    const revealed = cardEl?.classList.contains("revealed");
+    if (e.key === "ArrowRight") { revealed ? avanzar(1) : votar(1); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { revealed ? avanzar(-1) : votar(-1); e.preventDefault(); }
+    else if ((e.key === "Enter" || e.key === " ") && revealed && !e.target.closest?.("button, a")) { avanzar(1); e.preventDefault(); }
+    else if (e.key.toLowerCase() === "s" && !revealed) saltar();
+  });
+
+  // ---------- vista Afinidad ----------
+  function renderAfinidad() {
+    const rows = PARTIDOS.map(P => {
+      const vs = Object.entries(votos[P.id] || {}).filter(([n]) => P.medidas.some(m => m.n === +n && !m.pend)).map(([, r]) => r.v);
+      const n = vs.length;
+      const puntos = vs.reduce((a, v) => a + (byV[v]?.w ?? 0), 0);
+      const score = n ? Math.round(puntos / (W_MAX * n) * 100) : null;
+      const cnt = k => vs.filter(v => v === k).length;
+      return { P, n, score, total: votables(P).length, es: cnt(2), si: cnt(1), neu: cnt(0), no: cnt(-1), rf: cnt(-2) };
+    }).sort((a, b) => (b.score ?? -999) - (a.score ?? -999));
+    $("aff").innerHTML = rows.map(r => {
+      const pend = !r.P.medidas.length;
+      const s = r.score;
+      const bar = s == null ? "" : s >= 0
+        ? `<i style="left:50%;width:${s / 2}%"></i>`
+        : `<i style="left:${50 + s / 2}%;width:${-s / 2}%"></i>`;
+      return `<div class="aff-row" style="--party:${r.P.color}">
+        <div class="aff-top">
+          <span class="aff-name"><span class="dot"></span>${esc(r.P.nombre)}</span>
+          ${pend ? `<span class="aff-score pend">Programa sin publicar</span>`
+            : s == null ? `<span class="aff-score pend">Sin votos todavía</span>`
+            : `<span class="aff-score">${s > 0 ? "+" : s < 0 ? "−" : ""}${Math.abs(s)}</span>`}
+        </div>
+        <div class="diverge">${bar}</div>
+        ${pend ? "" : `<div class="aff-meta">
+          <span><b>${r.n}</b> / ${r.total} votadas</span>
+          <span class="es">Esenciales <b>${r.es}</b></span>
+          <span>A favor <b>${r.si}</b></span>
+          <span>Neutral <b>${r.neu}</b></span>
+          <span>En contra <b>${r.no}</b></span>
+          <span class="rf">Red flags <b>${r.rf}</b></span>
+        </div>`}
+      </div>`;
+    }).join("");
+    $("legend").innerHTML = VOTOS.slice().reverse().map(o => `<span>${o.w > 0 ? "+" : o.w < 0 ? "−" : ""}${Math.abs(o.w)}</span><span>${o.label}</span>`).join("");
+  }
+
+  // ---------- vista Mis votos ----------
+  let fVoto = "all", fPartido = "all";
+  function renderVotos() {
+    const all = [];
+    for (const P of LOADED) for (const m of P.medidas) {
+      const r = votos[P.id][m.n];
+      if (r && !m.pend) all.push({ P, m, v: r.v });
+    }
+    const countV = v => all.filter(x => (fPartido === "all" || x.P.id === fPartido) && (v === "all" || x.v === v)).length;
+    $("f-voto").innerHTML = [["all", "Todos"], ...VOTOS.slice().reverse().map(o => [o.v, o.label])]
+      .map(([v, l]) => `<button type="button" class="chip" data-v="${v}" aria-pressed="${String(fVoto === v)}">${l} · ${countV(v)}</button>`).join("");
+    $("f-partido").innerHTML = [["all", "Todos los partidos"], ...LOADED.map(P => [P.id, P.corto])]
+      .map(([id, l]) => `<button type="button" class="chip" data-p="${id}" aria-pressed="${String(fPartido === id)}">${esc(l)}</button>`).join("");
+    const items = all.filter(x => (fVoto === "all" || x.v === fVoto) && (fPartido === "all" || x.P.id === fPartido))
+      .sort((a, b) => a.P.id.localeCompare(b.P.id) || a.m.n - b.m.n);
+    $("list").innerHTML = items.length ? items.map(({ P, m, v }) => `
+      <details class="item" data-id="${P.id}:${m.n}">
+        <summary>
+          <span class="item-meta"><span class="dot" style="--party:${P.color}"></span>${esc(P.corto)} · ${esc(P.unidad)} ${m.n} · ${pagStr(m)}
+            <span class="pill" style="--c:var(--v-${byV[v].k})">${byV[v].label}</span></span>
+          <span class="item-title">${esc(m.ti || m.tx.slice(0, 120))}</span>
+        </summary>
+        <div class="item-body">
+          <p>${esc(m.tx)}</p>
+          <a href="${esc(pdfUrl(P.id, m))}" target="_blank" rel="noopener">Abrir en el PDF, ${pagStr(m)} ↗</a>
+          <div class="votes" role="group" aria-label="Cambiar voto">${VOTOS.map(o =>
+            `<button type="button" class="vbtn" data-v="${o.v}" style="--c:var(--v-${o.k})" aria-pressed="${String(o.v === v)}">${svg(o.k)}<span>${o.label}</span></button>`).join("")}</div>
+        </div>
+      </details>`).join("")
+      : `<div class="panel"><p class="small">${all.length ? "Ningún voto con este filtro." : "Aún no has votado ninguna propuesta. Empieza en Tarjetas."}</p></div>`;
+  }
+  $("f-voto").addEventListener("click", e => { const b = e.target.closest(".chip"); if (!b) return; fVoto = b.dataset.v === "all" ? "all" : +b.dataset.v; renderVotos(); });
+  $("f-partido").addEventListener("click", e => { const b = e.target.closest(".chip"); if (!b) return; fPartido = b.dataset.p; renderVotos(); });
+  $("list").addEventListener("click", e => {
+    const b = e.target.closest(".vbtn"); if (!b) return;
+    const d = b.closest("details"); const [p, n] = d.dataset.id.split(":");
+    const rec = { v: +b.dataset.v, t: Date.now() };
+    votos[p][+n] = rec; saveLocal(); Sync.push(p, +n, rec);
+    d.querySelectorAll(".vbtn").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    const pill = d.querySelector(".pill"); pill.textContent = byV[rec.v].label; pill.style.setProperty("--c", `var(--v-${byV[rec.v].k})`);
+  });
+
+  // ---------- navegación ----------
+  let vista = "tarjetas";
+  const VISTAS = ["tarjetas", "afinidad", "votos"];
+  function mostrar(v) {
+    vista = VISTAS.includes(v) ? v : "tarjetas";
+    for (const x of VISTAS) $("v-" + x).hidden = x !== vista;
+    document.querySelectorAll(".tabs a").forEach(a => a.dataset.view === vista ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+    renderAll();
+  }
+  function route() { mostrar(location.hash.slice(1)); }
+  document.querySelector(".tabs").addEventListener("click", e => {
+    const a = e.target.closest("a[data-view]"); if (!a) return;
+    e.preventDefault();
+    mostrar(a.dataset.view);
+    try { if (location.hash.slice(1) !== vista) location.hash = vista; } catch {}
+  });
+  function renderAll() {
+    if (vista === "tarjetas") renderCard();
+    else if (vista === "afinidad") renderAfinidad();
+    else renderVotos();
+  }
+  addEventListener("hashchange", route);
+
+  // ---------- sincronización con la cuenta (db) ----------
+  const Sync = (() => {
+    let refs = null, exists = {}, pending = {}, writing = {}, timer = {}, mode = "local";
+    const note = () => {
+      $("sync-note").textContent = mode === "cloud"
+        ? "Tus votos se guardan en tu cuenta y se sincronizan entre el móvil y el ordenador."
+        : mode === "error"
+        ? "No se ha podido conectar con tu cuenta. Tus votos se guardan en este navegador y se subirán cuando vuelva la conexión."
+        : "Tus votos se guardan solo en este navegador.";
+    };
+    note();
+    async function flush(p) {
+      if (!refs || writing[p] || !pending[p] || !Object.keys(pending[p]).length) return;
+      const batch = pending[p]; pending[p] = {};
+      writing[p] = true;
+      try {
+        if (exists[p]) await refs[p].update({ votos: batch });
+        else { await refs[p].set({ votos: votos[p] }); exists[p] = true; }
+      } catch (e) {
+        if (e && e.code === "invalid_argument" && exists[p]) {
+          exists[p] = false; pending[p] = Object.assign(batch, pending[p]);
+        } else if (e && (e.code === "unavailable" || e.code === "resource_exhausted")) {
+          pending[p] = Object.assign(batch, pending[p]);
+          setTimeout(() => flush(p), 3000 + Math.random() * 2000);
+        } else { mode = "error"; note(); }
+      } finally { writing[p] = false; }
+      if (Object.keys(pending[p] || {}).length) flush(p);
+    }
+    function push(p, n, rec) {
+      (pending[p] ||= {})[n] = rec;
+      clearTimeout(timer[p]);
+      timer[p] = setTimeout(() => flush(p), 500);
+    }
+    async function start() {
+      if (!window.claude || typeof window.claude.use !== "function") return;
+      try {
+        const [user, db] = await Promise.all([window.claude.use("user"), window.claude.use("db")]);
+        if (!user || !db) return;
+        const uid = await user.id();
+        if (!uid) return;
+        const col = db.collection("data/users/" + uid);
+        refs = Object.fromEntries(LOADED.map(P => [P.id, col.doc("votos-" + P.id)]));
+        mode = "cloud"; note();
+        for (const P of LOADED) {
+          let first = true;
+          const watchdog = setTimeout(() => { if (first) { mode = "error"; note(); } }, 10000);
+          refs[P.id].onSnapshot(snap => {
+            if (snap.metadata.fromCache) return;
+            clearTimeout(watchdog);
+            if (mode !== "cloud") { mode = "cloud"; note(); }
+            exists[P.id] = snap.exists;
+            const remote = (snap.exists && snap.data().votos) || {};
+            let changed = false;
+            for (const [n, r] of Object.entries(remote)) {
+              const l = votos[P.id][n];
+              if (!l || (r.t || 0) > (l.t || 0)) { votos[P.id][n] = r; changed = true; }
+            }
+            if (first) {
+              first = false;
+              // subir lo que solo está en este dispositivo o es más reciente
+              for (const [n, l] of Object.entries(votos[P.id])) {
+                const r = remote[n];
+                if (!r || (l.t || 0) > (r.t || 0)) (pending[P.id] ||= {})[n] = l;
+              }
+              flush(P.id);
+            }
+            if (changed) { saveLocal(); if (vista !== "tarjetas") renderAll(); else renderProgreso(); }
+          }, () => { clearTimeout(watchdog); mode = "error"; note(); });
+        }
+      } catch { mode = "error"; note(); }
+    }
+    return { push, start };
+  })();
+
+  renderNotice();
+  route();
+  Sync.start();
+})();
+</script>

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "pp",
+    "nombre": "Partido Popular",
+    "corto": "PP",
+    "color": "#1f5fbf",
+    "estado": "publicado"
+  },
+  {
+    "id": "psoe",
+    "nombre": "PSOE",
+    "corto": "PSOE",
+    "color": "#c8211b",
+    "estado": "pendiente"
+  },
+  {
+    "id": "vox",
+    "nombre": "Vox",
+    "corto": "Vox",
+    "color": "#3f7d22",
+    "estado": "pendiente"
+  },
+  {
+    "id": "fa",
+    "nombre": "Frente Amplio",
+    "corto": "Frente Amplio",
+    "color": "#8a2a78",
+    "estado": "pendiente"
+  }
+]
