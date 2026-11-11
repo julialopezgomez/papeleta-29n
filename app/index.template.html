@@ -64,6 +64,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .brand { font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; font-size: 17px; display: flex; align-items: baseline; gap: 6px; }
 .brand small { font-weight: 500; font-stretch: 100%; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.acct {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px 5px 8px; font-size: 13px; font-weight: 600; max-width: 45%;
+}
+.acct svg { width: 18px; height: 18px; flex: none; }
+.acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct[hidden] { display: none; }
+.tabs { order: 3; }
 .tabs { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
 .tabs a {
   text-decoration: none; color: var(--muted); font-size: 13px; font-weight: 600;
@@ -199,6 +208,38 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .item-body .vbtn svg { width: 18px; height: 18px; }
 .sync { font-size: 12px; color: var(--muted); text-align: center; }
 
+/* Cuenta */
+.acct-panel { display: grid; gap: 14px; padding: 18px 16px; }
+.acct-panel h2 { margin: 0; }
+.acct-panel p { margin: 0; font-size: 14px; color: var(--muted); }
+.acct-panel p b { color: var(--ink); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; border-radius: 9px; padding: 8px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.form { display: grid; gap: 12px; }
+.field { display: grid; gap: 5px; }
+.field label { font-size: 13px; font-weight: 600; }
+.field input {
+  font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--card); color: var(--ink); min-width: 0;
+}
+.field input:focus { outline: none; border-color: var(--accent); }
+.field small { font-size: 12px; color: var(--muted); }
+.btn {
+  font-weight: 700; font-size: 15px; padding: 12px; border-radius: 12px;
+  border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+}
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn:disabled { opacity: .55; cursor: default; }
+.link { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; font-size: 14px; justify-self: center; }
+.err { color: var(--v-rf); font-size: 13.5px; font-weight: 600; min-height: 1em; }
+.err:empty { display: none; }
+.ok { color: var(--v-es); font-size: 13.5px; font-weight: 600; }
+.share { display: flex; gap: 8px; align-items: center; }
+.share input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 9px 10px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); }
+.share .btn { padding: 9px 12px; font-size: 13px; }
+.fine { font-size: 12px !important; line-height: 1.45; }
+
 @media (min-width: 700px) {
   .app { padding-block: 24px; }
   .card-body { padding: 24px 28px 28px; }
@@ -212,6 +253,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 <div class="app">
   <header class="top">
     <div class="brand">Papeleta <small>Generales 29N</small></div>
+    <button type="button" class="acct" id="btn-cuenta" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c.9-3.6 3.6-5.4 7-5.4s6.1 1.8 7 5.4"/></svg>
+      <span id="btn-cuenta-txt">Entrar</span>
+    </button>
     <nav class="tabs" aria-label="Secciones">
       <a href="#tarjetas" data-view="tarjetas">Tarjetas</a>
       <a href="#afinidad" data-view="afinidad">Afinidad</a>
@@ -255,6 +300,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div class="filters" id="f-partido" role="group" aria-label="Filtrar por partido"></div>
     <div class="scroll"><div class="list" id="list"></div></div>
   </section>
+
+  <section class="view" id="v-cuenta" aria-label="Cuenta" hidden>
+    <div class="scroll"><div class="panel acct-panel" id="cuenta"></div></div>
+  </section>
 </div>
 
 <script id="programas" type="application/json">/*__DATA__*/[]</script>
@@ -290,11 +339,26 @@ button { font: inherit; color: inherit; cursor: pointer; }
     get(k, d) { try { const v = localStorage.getItem("p29n." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem("p29n." + k, JSON.stringify(v)); } catch {} },
   };
-  // votos[partido][n] = {v, t}
-  const votos = Object.assign(Object.fromEntries(PARTIDOS.map(p => [p.id, {}])), LS.get("votos", {}));
+  // votos[partido][n] = {v, t}. Sin cuenta se guardan en "votos"; con cuenta,
+  // en "votos.u.<uid>", para que varias personas puedan usar el mismo navegador.
+  const cuentaGuardada = LS.get("cuentaActual", null);
+  let ns = cuentaGuardada ? "votos.u." + cuentaGuardada : "votos";
+  const votos = Object.fromEntries(PARTIDOS.map(p => [p.id, {}]));
+  function cargarVotos() {
+    const d = LS.get(ns, {}) || {};
+    for (const p of PARTIDOS) votos[p.id] = d[p.id] || {};
+  }
+  cargarVotos();
   let saltadas = new Set(LS.get("saltadas", []));
   let actual = LS.get("actual", null);
-  const saveLocal = () => { LS.set("votos", votos); LS.set("saltadas", [...saltadas]); LS.set("actual", actual); };
+  const saveLocal = () => { LS.set(ns, votos); LS.set("saltadas", [...saltadas]); LS.set("actual", actual); };
+  const alVotarFns = [];
+  function registrar(p, n, rec) {
+    votos[p][n] = rec;
+    saveLocal();
+    Sync.push(p, n, rec);
+    for (const f of alVotarFns) { try { f(p, n, rec); } catch {} }
+  }
 
   const medida = id => { const [p, n] = id.split(":"); const m = byId[p]?.medidas.find(x => x.n === +n); return m ? { p, m } : null; };
   const voto = (p, n) => votos[p]?.[n]?.v;
@@ -394,11 +458,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   function votar(v) {
     if (!actual) return;
     const { p, m } = medida(actual);
-    const rec = { v, t: Date.now() };
-    votos[p][m.n] = rec;
     saltadas.delete(actual);
-    saveLocal();
-    Sync.push(p, m.n, rec);
+    registrar(p, m.n, { v, t: Date.now() });
     renderCard();
   }
 
@@ -546,16 +607,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
     const b = e.target.closest(".vbtn"); if (!b) return;
     const d = b.closest("details"); const [p, n] = d.dataset.id.split(":");
     const rec = { v: +b.dataset.v, t: Date.now() };
-    votos[p][+n] = rec; saveLocal(); Sync.push(p, +n, rec);
+    registrar(p, +n, rec);
     d.querySelectorAll(".vbtn").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     const pill = d.querySelector(".pill"); pill.textContent = byV[rec.v].label; pill.style.setProperty("--c", `var(--v-${byV[rec.v].k})`);
   });
 
   // ---------- navegación ----------
   let vista = "tarjetas";
-  const VISTAS = ["tarjetas", "afinidad", "votos"];
+  let cuentasActivas = false, renderCuenta = null;
+  const VISTAS = ["tarjetas", "afinidad", "votos", "cuenta"];
   function mostrar(v) {
-    vista = VISTAS.includes(v) ? v : "tarjetas";
+    vista = VISTAS.includes(v) && (v !== "cuenta" || cuentasActivas) ? v : "tarjetas";
     for (const x of VISTAS) $("v-" + x).hidden = x !== vista;
     document.querySelectorAll(".tabs a").forEach(a => a.dataset.view === vista ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
     renderAll();
@@ -570,8 +632,61 @@ button { font: inherit; color: inherit; cursor: pointer; }
   function renderAll() {
     if (vista === "tarjetas") renderCard();
     else if (vista === "afinidad") renderAfinidad();
-    else renderVotos();
+    else if (vista === "votos") renderVotos();
+    else if (vista === "cuenta" && renderCuenta) renderCuenta();
   }
+  $("btn-cuenta").addEventListener("click", () => {
+    mostrar("cuenta");
+    try { if (location.hash.slice(1) !== "cuenta") location.hash = "cuenta"; } catch {}
+  });
+
+  // ---------- API para el módulo de cuentas (solo en la web pública) ----------
+  window.Papeleta = Object.freeze({
+    activarCuentas(render) {
+      cuentasActivas = true; renderCuenta = render;
+      $("btn-cuenta").hidden = false;
+      if (location.hash.slice(1) === "cuenta") mostrar("cuenta");
+    },
+    usarCuenta(uid) {
+      LS.set("cuentaActual", uid || null);
+      const nuevo = uid ? "votos.u." + uid : "votos";
+      if (nuevo === ns) return;
+      ns = nuevo;
+      cargarVotos();
+      const a = actual && medida(actual);
+      if (a && voto(a.p, a.m.n) !== undefined) actual = null;
+      saveLocal();
+      renderProgreso();
+      renderAll();
+    },
+    votosAnonimos: () => LS.get("votos", {}) || {},
+    borrarAnonimos: () => LS.set("votos", {}),
+    // Mezcla votos remotos (gana el más reciente) y devuelve los locales
+    // que el remoto no tiene o tiene más antiguos.
+    fusionar(remoto) {
+      const masNuevos = {};
+      let cambios = 0, nuevosLocales = 0;
+      for (const P of PARTIDOS) {
+        const r = (remoto && remoto[P.id]) || {}, l = votos[P.id];
+        for (const [n, rec] of Object.entries(r)) {
+          if (!rec || typeof rec.v !== "number" || !byV[rec.v]) continue;
+          if (!l[n] || (rec.t || 0) > (l[n].t || 0)) { l[n] = { v: rec.v, t: rec.t || 0 }; cambios++; }
+        }
+        for (const [n, rec] of Object.entries(l)) {
+          if (!r[n] || (rec.t || 0) > (r[n].t || 0)) { (masNuevos[P.id] ||= {})[n] = rec; nuevosLocales++; }
+        }
+      }
+      if (cambios) { saveLocal(); renderAll(); }
+      return { masNuevos, cambios, nuevosLocales };
+    },
+    alVotar(fn) { alVotarFns.push(fn); },
+    mostrar(v) { mostrar(v); try { location.hash = vista; } catch {} },
+    vista: () => vista,
+    ls: LS,
+    nota(t) { $("sync-note").textContent = t; },
+    cuentaTexto(t) { $("btn-cuenta-txt").textContent = t; },
+    totalVotos: () => Object.values(votos).reduce((s, o) => s + Object.keys(o).length, 0),
+  });
   addEventListener("hashchange", route);
 
   // ---------- sincronización con la cuenta (db) ----------
@@ -653,3 +768,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
   Sync.start();
 })();
 </script>
+<!--__CUENTAS__-->

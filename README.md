@@ -33,6 +33,24 @@ servidor y no se sincronizan entre dispositivos.
 | Vox | sin publicar | — |
 | Frente Amplio | sin publicar | — |
 
+## Cuentas (Supabase)
+
+Las cuentas son de nombre + contraseña, sin correo. No usan Supabase Auth: todo
+está en `supabase/migrations/` y se despliega con la integración de GitHub de
+Supabase al hacer push a `main` (igual que en sort-it-out-game).
+
+- Las tablas viven en el esquema `privado`, que la API no expone.
+- El navegador solo puede llamar a `papeleta_registrar`, `papeleta_entrar`,
+  `papeleta_votos`, `papeleta_guardar`, `papeleta_salir` y `papeleta_borrar_cuenta`.
+- Contraseñas con bcrypt; 10 intentos fallidos bloquean la cuenta 15 minutos.
+- `data/supabase.json` (`{"url": …, "key": …}`) lleva la URL y la clave
+  *publishable*, que son públicas. Nunca la clave secreta.
+
+```bash
+scripts/test-db.sh          # pruebas de las funciones en un Postgres temporal (Docker)
+scripts/api-local.sh start  # API local en http://localhost:3000 para probar la web
+```
+
 ## Añadir un programa nuevo
 
 ```bash

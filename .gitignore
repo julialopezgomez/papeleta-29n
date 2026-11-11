@@ -3,3 +3,4 @@ __pycache__/
 fuentes/
 dist/
 .DS_Store
+.claude/
