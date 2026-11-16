@@ -28,18 +28,20 @@ def main():
             entry["fuente"] = d["fuente"]
             entry["unidad"] = d.get("unidad", "Medida")
             entry["medidas"] = [
-                {
+                {k: v for k, v in {
                     "n": m["n"],
+                    "r": m.get("ref"),                  # referencia (FA no numera)
                     "p": m["pagina"],
                     "pf": m["pagina_fin"],
                     "pdf": m.get("pagina_pdf", m["pagina"]),
                     "a": m.get("apartado"),
                     "at": m.get("apartado_titulo"),
+                    "c": m.get("contexto"),             # subtítulo / subapartado
                     "b": m.get("bloque"),
                     "ti": m["titulo"],
-                    "tx": m["texto"],
-                    **({"pend": True} if m.get("pendiente") else {}),
-                }
+                    "tx": m["texto"],                   # negrita como **…**
+                    "pend": True if m.get("pendiente") else None,
+                }.items() if v not in (None, "")}
                 for m in d["medidas"]
             ]
             entry["estado"] = "publicado"

@@ -11,20 +11,20 @@
     "nombre": "PSOE",
     "corto": "PSOE",
     "color": "#c8211b",
-    "estado": "pendiente"
+    "estado": "publicado"
   },
   {
     "id": "vox",
     "nombre": "Vox",
     "corto": "Vox",
     "color": "#3f7d22",
-    "estado": "pendiente"
+    "estado": "publicado"
   },
   {
     "id": "fa",
     "nombre": "Frente Amplio",
     "corto": "Frente Amplio",
     "color": "#8a2a78",
-    "estado": "pendiente"
+    "estado": "publicado"
   }
 ]

@@ -116,7 +116,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
   border: 1.5px dashed var(--muted); font-size: 12px; text-transform: none; letter-spacing: 0;
 }
-.card-head .ref { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card-head { flex-wrap: wrap; row-gap: 4px; }
+.card-head .ref { font-variant-numeric: tabular-nums; text-align: right; margin-left: auto; }
+.card-text b, .item-body p b { font-weight: 650; }
 .card.revealed .card-head { background: var(--party); color: #fff; border-bottom-color: transparent; }
 .card.revealed .card-head .q { display: none; }
 .party-name { font-weight: 800; font-stretch: 110%; letter-spacing: .02em; font-size: 13px; }
@@ -366,6 +368,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   const totalVotables = LOADED.reduce((s, p) => s + votables(p).length, 0);
   const totalVotadas = () => LOADED.reduce((s, p) => s + votables(p).filter(m => voto(p.id, m.n) !== undefined).length, 0);
   const pagStr = m => m.pf && m.pf !== m.p ? `págs. ${m.p}–${m.pf}` : `pág. ${m.p}`;
+  const refStr = (P, m) => m.r || `${P.unidad} ${m.n}`;
+  // texto literal; la negrita del original viene marcada como **…**
+  const fmt = tx => esc(tx).replace(/\*\*([\s\S]+?)\*\*/g, "<b>$1</b>");
+  const plano = tx => tx.replace(/\*\*/g, "").replace(/\n• /g, " · ").replace(/\n/g, " ");
   const pdfUrl = (p, m) => `${byId[p].fuente}#page=${m.pdf}`;
 
   // ---------- elegir la siguiente tarjeta ----------
@@ -429,14 +435,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <article class="card${revealed ? " revealed" : ""}" style="--party:${P.color}" aria-live="polite">
         <div class="card-head">
           <span class="who"><span class="q" aria-hidden="true">?</span><span class="party-name">${revealed ? esc(P.nombre) : "Propuesta anónima"}</span></span>
-          <span class="ref">${revealed ? `${esc(P.unidad)} ${m.n} · ${pagStr(m)}` : ""}</span>
+          <span class="ref">${revealed ? `${esc(refStr(P, m))} · ${pagStr(m)}` : ""}</span>
         </div>
         <div class="card-body">
           ${m.ti ? `<h1 class="card-title">${esc(m.ti)}</h1>` : ""}
-          <p class="card-text">${esc(m.tx)}</p>
+          <p class="card-text">${fmt(m.tx)}</p>
           <div class="reveal-info">
-            ${m.a ? `<span>Apartado ${esc(m.a)}${m.at ? " · " + esc(m.at) : ""}</span>` : ""}
             ${m.b ? `<span>Bloque: ${esc(m.b)}</span>` : ""}
+            ${m.a || m.at ? `<span>${m.a ? `Apartado ${esc(m.a)}` : "Apartado"}${m.at ? ": " + esc(m.at) : ""}</span>` : ""}
+            ${m.c ? `<span>${esc(m.c)}</span>` : ""}
             <span>${esc(P.documento)}</span>
             <a href="${esc(pdfUrl(p, m))}" target="_blank" rel="noopener">Abrir el programa en la ${pagStr(m).replace("págs.", "página").replace("pág.", "página")} ↗</a>
           </div>
@@ -588,12 +595,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
     $("list").innerHTML = items.length ? items.map(({ P, m, v }) => `
       <details class="item" data-id="${P.id}:${m.n}">
         <summary>
-          <span class="item-meta"><span class="dot" style="--party:${P.color}"></span>${esc(P.corto)} · ${esc(P.unidad)} ${m.n} · ${pagStr(m)}
+          <span class="item-meta"><span class="dot" style="--party:${P.color}"></span>${esc(P.corto)} · ${esc(refStr(P, m))} · ${pagStr(m)}
             <span class="pill" style="--c:var(--v-${byV[v].k})">${byV[v].label}</span></span>
-          <span class="item-title">${esc(m.ti || m.tx.slice(0, 120))}</span>
+          <span class="item-title">${esc(m.ti || (plano(m.tx).length > 140 ? plano(m.tx).slice(0, 140) + "…" : plano(m.tx)))}</span>
         </summary>
         <div class="item-body">
-          <p>${esc(m.tx)}</p>
+          <p>${fmt(m.tx)}</p>
           <a href="${esc(pdfUrl(P.id, m))}" target="_blank" rel="noopener">Abrir en el PDF, ${pagStr(m)} ↗</a>
           <div class="votes" role="group" aria-label="Cambiar voto">${VOTOS.map(o =>
             `<button type="button" class="vbtn" data-v="${o.v}" style="--c:var(--v-${o.k})" aria-pressed="${String(o.v === v)}">${svg(o.k)}<span>${o.label}</span></button>`).join("")}</div>

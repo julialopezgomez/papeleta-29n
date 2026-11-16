@@ -26,6 +26,7 @@ async function rpc(fn, args, opts = {}) {
   } catch {
     return { error: "RED" };
   }
+  if (r.status === 404) return { error: "NO_INSTALADO" }; // faltan las funciones en Supabase
   if (!r.ok) return { error: r.status >= 500 || r.status === 0 ? "RED" : "SERVIDOR" };
   try { return await r.json(); } catch { return { error: "SERVIDOR" }; }
 }
@@ -267,14 +268,24 @@ function render() {
 }
 
 // ---------- arranque ----------
-P.activarCuentas(render);
-if (sesion) {
-  P.usarCuenta(sesion.nombre);
-  P.cuentaTexto(sesion.nombre);
-  setEstado("");
-  cargar();
-} else {
-  P.usarCuenta(null);
-  setEstado("");
-  if (!P.ls.get("sinCuenta", false)) P.mostrar("cuenta");
-}
+// Si la base de datos aún no tiene las funciones (migraciones sin aplicar),
+// la web funciona sin cuentas en vez de enseñar un registro que fallaría.
+(async () => {
+  const prueba = await rpc("papeleta_votos", { p_token: "comprobar" });
+  if (prueba.error === "NO_INSTALADO") {
+    P.usarCuenta(null);
+    P.nota("Tus votos se guardan solo en este navegador.");
+    return;
+  }
+  P.activarCuentas(render);
+  if (sesion) {
+    P.usarCuenta(sesion.nombre);
+    P.cuentaTexto(sesion.nombre);
+    setEstado("");
+    cargar();
+  } else {
+    P.usarCuenta(null);
+    setEstado("");
+    if (!P.ls.get("sinCuenta", false)) P.mostrar("cuenta");
+  }
+})();
