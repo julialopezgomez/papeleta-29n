@@ -692,6 +692,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     ls: LS,
     nota(t) { $("sync-note").textContent = t; },
     cuentaTexto(t) { $("btn-cuenta-txt").textContent = t; },
+    todos: () => JSON.parse(JSON.stringify(votos)),
     totalVotos: () => Object.values(votos).reduce((s, o) => s + Object.keys(o).length, 0),
   });
   addEventListener("hashchange", route);

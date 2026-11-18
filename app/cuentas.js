@@ -1,8 +1,8 @@
 // Cuentas con nombre + contraseña y votos sincronizados en Supabase.
 // Solo se incluye en la web pública (docs/index.html). build.py sustituye
 // SUPABASE por {url, key} de data/supabase.json: la clave es la pública
-// (anon/publishable). La seguridad está en la base de datos: el navegador
-// solo puede llamar a las funciones de supabase/migrations/0030_rpc.sql.
+// (anon/publishable). El navegador solo puede llamar a las funciones de
+// supabase/migrations/ y los votos viajan y se guardan cifrados (0040).
 const SUPABASE = /*__SUPABASE__*/null;
 const REST = SUPABASE.rest || SUPABASE.url.replace(/\/$/, "") + "/rest/v1";
 
@@ -31,52 +31,102 @@ async function rpc(fn, args, opts = {}) {
   try { return await r.json(); } catch { return { error: "SERVIDOR" }; }
 }
 
-// ---------- sincronización ----------
-let pend = {}, timer = null, escribiendo = false, ultimaCarga = 0;
+// ---------- cifrado ----------
+// Los votos se cifran en el navegador con AES-GCM. La clave se deriva de la
+// contraseña (PBKDF2) y no sale nunca del navegador: la base de datos solo
+// guarda un bloque ilegible ("v1.<iv>.<datos>").
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const deb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 
-function encolar(p, n, rec) {
-  (pend[p] ||= {})[n] = rec;
-  clearTimeout(timer);
-  timer = setTimeout(flush, 500);
+async function derivarClave(nombre, pass) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  const clave = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", iterations: 310000, salt: new TextEncoder().encode("papeleta29n|cifrado|" + nombre) },
+    base, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  return b64(await crypto.subtle.exportKey("raw", clave));
+}
+let claveCache = null;
+async function clave() {
+  if (!claveCache || claveCache.b64 !== sesion.clave) {
+    claveCache = { b64: sesion.clave, k: await crypto.subtle.importKey("raw", deb64(sesion.clave), "AES-GCM", false, ["encrypt", "decrypt"]) };
+  }
+  return claveCache.k;
+}
+async function cifrar(obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await clave(), new TextEncoder().encode(JSON.stringify(obj)));
+  return `v1.${b64(iv)}.${b64(ct)}`;
+}
+async function descifrar(datos) {
+  if (!datos) return {};
+  const [ver, iv, ct] = datos.split(".");
+  if (ver !== "v1") throw new Error("formato");
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: deb64(iv) }, await clave(), deb64(ct));
+  return JSON.parse(new TextDecoder().decode(pt));
 }
 
-async function flush(opts = {}) {
+// ---------- sincronización ----------
+// Se guarda el conjunto completo de votos como un bloque cifrado. `version`
+// evita que dos dispositivos se pisen: si alguien escribió antes, se mezcla
+// (gana el voto más reciente) y se reintenta.
+let version = 0, sucio = false, timer = null, escribiendo = false, ultimaCarga = 0, bloqueado = false;
+
+function encolar() {
+  sucio = true;
   clearTimeout(timer);
-  if (!sesion || escribiendo || !Object.keys(pend).length) return;
-  const lote = pend;
-  pend = {};
+  timer = setTimeout(flush, 600);
+}
+
+async function flush() {
+  clearTimeout(timer);
+  if (!sesion || escribiendo || !sucio || bloqueado) return;
   escribiendo = true;
+  sucio = false;
   setEstado("guardando");
-  const r = await rpc("papeleta_guardar", { p_token: sesion.token, p_votos: lote }, opts);
-  escribiendo = false;
-  if (r.ok) {
-    setEstado("ok");
-  } else if (r.error === "SESION") {
-    return caducada();
-  } else {
-    for (const [p, o] of Object.entries(lote)) pend[p] = Object.assign({}, o, pend[p]);
-    setEstado(r.error === "RED" ? "offline" : "error");
-    timer = setTimeout(flush, 8000);
-    return;
+  let r;
+  for (let intento = 0; intento < 4; intento++) {
+    r = await rpc("papeleta_escribir", { p_token: sesion.token, p_datos: await cifrar(P.todos()), p_version: version });
+    if (r.error !== "CONFLICTO") break;
+    try { P.fusionar(await descifrar(r.datos)); } catch { r = { error: "CLAVE" }; break; }
+    version = r.version;
   }
-  if (Object.keys(pend).length) flush();
+  escribiendo = false;
+  if (r.ok) { version = r.version; setEstado("ok"); if (sucio) flush(); return; }
+  if (r.error === "SESION") return caducada();
+  if (r.error === "CLAVE") return claveIncorrecta();
+  sucio = true;
+  setEstado(r.error === "RED" ? "offline" : "error");
+  timer = setTimeout(flush, 8000);
 }
 
 async function cargar() {
   if (!sesion) return;
   ultimaCarga = Date.now();
   if (estado === "") setEstado("cargando");
-  const r = await rpc("papeleta_votos", { p_token: sesion.token });
+  const r = await rpc("papeleta_leer", { p_token: sesion.token });
   if (r.error === "SESION") return caducada();
   if (!r.ok) { setEstado(r.error === "RED" ? "offline" : "error"); return; }
-  const { masNuevos } = P.fusionar(r.votos || {});
-  for (const [p, o] of Object.entries(masNuevos)) for (const [n, rec] of Object.entries(o)) (pend[p] ||= {})[n] = rec;
-  if (Object.keys(pend).length) await flush(); else setEstado("ok");
+  let remoto;
+  try { remoto = await descifrar(r.datos); } catch { return claveIncorrecta(); }
+  version = r.version;
+  const a = P.fusionar(remoto);
+  const b = r.planos ? P.fusionar(r.planos) : { nuevosLocales: 0 };
+  // hay que subir si este dispositivo tiene algo que el servidor no, o si
+  // quedan votos antiguos en claro (al subir el bloque cifrado se borran)
+  if (a.nuevosLocales || r.planos || !r.datos && P.totalVotos()) { sucio = true; await flush(); }
+  else setEstado("ok");
+}
+
+// Si el bloque no se puede descifrar, NO se sobrescribe (se perderían votos).
+function claveIncorrecta() {
+  bloqueado = true;
+  setEstado("error");
+  P.nota("No se han podido descifrar tus votos guardados. Cierra sesión y vuelve a entrar con tu contraseña.");
 }
 
 function caducada() {
   sesion = null; P.ls.set("sesion", null);
-  pend = {};
+  sucio = false; version = 0; bloqueado = false;
   P.usarCuenta(null);
   P.cuentaTexto("Entrar");
   error = "Tu sesión ha caducado. Vuelve a entrar con tu nombre y contraseña.";
@@ -98,10 +148,10 @@ function setEstado(s) {
   if (P.vista() === "cuenta") render();
 }
 
-P.alVotar((p, n, rec) => { if (sesion) encolar(p, n, rec); });
+P.alVotar(() => { if (sesion) encolar(); });
 document.addEventListener("visibilitychange", () => {
   if (!sesion) return;
-  if (document.visibilityState === "hidden") flush({ keepalive: true });
+  if (document.visibilityState === "hidden") flush();
   else if (Date.now() - ultimaCarga > 15000) cargar();
 });
 addEventListener("focus", () => { if (sesion && Date.now() - ultimaCarga > 15000) cargar(); });
@@ -130,9 +180,9 @@ async function salir() {
   const t = sesion && sesion.token, nombre = sesion && sesion.nombre;
   await flush();
   // si todo está subido, no se deja copia de los votos en este navegador
-  if (nombre && !Object.keys(pend).length) P.ls.set("votos.u." + nombre, null);
+  if (nombre && !sucio) P.ls.set("votos.u." + nombre, null);
   sesion = null; P.ls.set("sesion", null);
-  pend = {}; aviso = ""; error = "";
+  sucio = false; version = 0; bloqueado = false; aviso = ""; error = "";
   P.usarCuenta(null);
   P.cuentaTexto("Entrar");
   setEstado("");
@@ -164,13 +214,15 @@ async function enviar(e) {
   btn.disabled = true; btn.textContent = "Un momento…";
   const crear = modo === "crear";
   const r = await rpc(crear ? "papeleta_registrar" : "papeleta_entrar", { p_nombre: nombre, p_pass: pass });
-  ocupado = false;
   if (!r.ok) {
+    ocupado = false;
     btn.disabled = false; btn.textContent = crear ? "Crear cuenta" : "Entrar";
     return fallo(MENSAJES[r.error] || "No se ha podido completar. Vuelve a intentarlo.");
   }
-  empezarSesion({ token: r.token, nombre: r.nombre }, crear);
+  btn.textContent = "Preparando el cifrado…";
+  empezarSesion({ token: r.token, nombre: r.nombre, clave: await derivarClave(r.nombre, pass) }, crear);
   // si se han pasado votos de este navegador a la cuenta, se enseña el aviso
+  ocupado = false;
   P.mostrar(aviso.startsWith("Se han") ? "cuenta" : "tarjetas");
   if (P.vista() === "cuenta") render();
 }
@@ -182,7 +234,7 @@ async function borrarCuenta(e) {
   const r = await rpc("papeleta_borrar_cuenta", { p_token: sesion.token, p_pass: pass });
   if (!r.ok) { errEl.textContent = r.error === "CREDENCIALES" ? "Contraseña incorrecta." : (MENSAJES[r.error] || "No se ha podido borrar."); return; }
   const nombre = sesion.nombre;
-  sesion = null; P.ls.set("sesion", null); pend = {};
+  sesion = null; P.ls.set("sesion", null); sucio = false; version = 0;
   P.ls.set("votos.u." + nombre, {});
   P.usarCuenta(null);
   P.cuentaTexto("Entrar");
@@ -195,7 +247,7 @@ async function borrarCuenta(e) {
 }
 
 // ---------- interfaz ----------
-const PRIVACIDAD = `<p class="fine">Los votos se guardan en una base de datos (Supabase) que administra quien publicó esta web. La web solo deja leer a cada persona sus propios votos.</p>`;
+const PRIVACIDAD = `<p class="fine">Tus votos se cifran en tu navegador con una clave que sale de tu contraseña y nunca se envía. La base de datos (Supabase) solo guarda datos ilegibles: ni quien administra esta web puede ver qué has votado. Por eso, si olvidas la contraseña, tus votos guardados no se pueden recuperar.</p>`;
 
 function render() {
   const url = location.origin + location.pathname;
@@ -271,14 +323,19 @@ function render() {
 // Si la base de datos aún no tiene las funciones (migraciones sin aplicar),
 // la web funciona sin cuentas en vez de enseñar un registro que fallaría.
 (async () => {
-  const prueba = await rpc("papeleta_votos", { p_token: "comprobar" });
+  const prueba = await rpc("papeleta_leer", { p_token: "comprobar" });
   if (prueba.error === "NO_INSTALADO") {
     P.usarCuenta(null);
     P.nota("Tus votos se guardan solo en este navegador.");
     return;
   }
   P.activarCuentas(render);
-  if (sesion) {
+  if (sesion && !sesion.clave) {
+    // sesión de antes del cifrado: hace falta la contraseña para sacar la clave
+    caducada();
+    error = "Ahora tus votos se guardan cifrados. Vuelve a entrar con tu contraseña para activarlo.";
+    render();
+  } else if (sesion) {
     P.usarCuenta(sesion.nombre);
     P.cuentaTexto(sesion.nombre);
     setEstado("");
