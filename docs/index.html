@@ -122,7 +122,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card.revealed .card-head { background: var(--party); color: #fff; border-bottom-color: transparent; }
 .card.revealed .card-head .q { display: none; }
 .party-name { font-weight: 800; font-stretch: 110%; letter-spacing: .02em; font-size: 13px; }
-.card-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 24px; overscroll-behavior: contain; }
+/* El texto tiene su propio scroll: sin touch-action: pan-y el navegador del
+   móvil se queda también los gestos horizontales y cancela el deslizamiento. */
+.card-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 24px; overscroll-behavior: contain; touch-action: pan-y; }
 .card-title {
   font-family: var(--f-ui); font-weight: 700; font-stretch: 104%; font-size: 15.5px; line-height: 1.35;
   letter-spacing: .005em; margin: 0 0 12px; text-wrap: balance;
@@ -525,7 +527,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
     };
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
-    el.addEventListener("lostpointercapture", end);
+    // En táctil el navegador captura el dedo en el elemento tocado (el texto);
+    // al pasar la captura a la tarjeta, ese elemento emite lostpointercapture,
+    // que sube hasta aquí. Solo cuenta si la pierde la propia tarjeta.
+    el.addEventListener("lostpointercapture", e => { if (e.target === el) end(); });
   }
 
   document.addEventListener("keydown", e => {
